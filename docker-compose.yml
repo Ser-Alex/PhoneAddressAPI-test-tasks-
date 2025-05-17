@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  fastapi:
+    image: fastapi/phone-service:1.0.0
+    container_name: phone-api-backend
+    build:
+      context: .
+    env_file:
+      - .env
+    ports:
+      - "8082:8000"
+    restart: always
