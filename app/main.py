@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request, status
+from fastapi.responses import JSONResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 
 from app.config import ENV, REDIS_HOST, REDIS_PORT
-from app.models import RootResponse
+from app.models import RootResponse, WriteDataRequest
 
 
 @asynccontextmanager
@@ -49,3 +50,39 @@ async def root() -> RootResponse:
     Возвращает статус и версию сервиса
     """
     return RootResponse(status='OK', version='1.0')
+
+
+@app.post('/write_data', dependencies=[Depends(rate_limit)])
+async def post_write_data(
+        data: WriteDataRequest,
+        request: Request
+):
+    """
+    Сохраняет или обновляет адрес по номеру телефона в redis
+    """
+    redis_client = request.app.state.redis_client
+    await redis_client.set(data.phone, data.address)
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"message": "Данные успешно сохранены"}
+    )
+
+
+@app.get(
+    '/write_data',
+    response_model=WriteDataRequest,
+    dependencies=[Depends(rate_limit)]
+)
+async def get_write_data(phone: str, request: Request):
+    """
+    Получает адрес по номеру телефона из redis
+    """
+    redis_client = request.app.state.redis_client
+    address = await redis_client.get(phone)
+    if address is None:
+        return JSONResponse(
+            status_code=404,
+            content={"message": "Данные не найдены"}
+        )
+    return WriteDataRequest(phone=phone, address=address)
+
