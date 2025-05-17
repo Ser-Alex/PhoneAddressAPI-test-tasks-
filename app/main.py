@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
@@ -6,8 +7,17 @@ from fastapi.responses import JSONResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 
+
 from app.config import ENV, REDIS_HOST, REDIS_PORT
 from app.models import RootResponse, WriteDataRequest
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("app")
 
 
 @asynccontextmanager
@@ -17,6 +27,7 @@ async def lifespan(app: FastAPI):
     При запуске создаёт подключение к redis
     При завершении приложения закрывает подключение к redis
     """
+    logger.info("Starting up application")
     redis_client = redis.Redis(
         host=REDIS_HOST,
         port=REDIS_PORT,
@@ -24,20 +35,41 @@ async def lifespan(app: FastAPI):
     )
     app.state.redis_client = redis_client
     await FastAPILimiter.init(redis_client)  # Подключаемся к Redis для лимита запросов
+    logger.info("Redis connection established and rate limiter initialized.")
 
     yield
 
     await redis_client.close()
     await redis_client.wait_closed()
+    logger.info("Redis connection closed successfully.")
 
 
 app = FastAPI(
     docs_url=None if ENV != 'test' else '/docs',
     redoc_url=None if ENV != 'test' else '/redoc',
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-rate_limit = RateLimiter(times=10, seconds=60)
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """
+    Middleware для логирования HTTP-запросов и ответов
+    """
+    logger.info(f"Incoming request: {request.method} {request.url.path}")
+
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        logger.exception(f"Unhandled error: {e}")
+        raise
+
+    logger.info(f"Response status: {response.status_code}")
+    return response
+
+
+rate_limit = RateLimiter(times=10, seconds=60)  # ограничение - не более 10 запросов в 60 секунд
+
 
 
 @app.get(
@@ -85,4 +117,3 @@ async def get_write_data(phone: str, request: Request):
             content={"message": "Данные не найдены"}
         )
     return WriteDataRequest(phone=phone, address=address)
-
