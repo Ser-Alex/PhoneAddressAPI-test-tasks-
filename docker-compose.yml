@@ -11,3 +11,9 @@ services:
     ports:
       - "8082:8000"
     restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: phone-api-redis
+    restart: always
+
