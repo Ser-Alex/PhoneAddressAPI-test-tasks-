@@ -9,7 +9,7 @@ class RootResponse(BaseModel):
     version: str
 
 
-class WriteDataRequest(BaseModel):
+class DataRequest(BaseModel):
     """
     Модель для запроса записи или обновления данных
     по номеру телефона и адресу

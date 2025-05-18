@@ -9,7 +9,7 @@ from fastapi_limiter.depends import RateLimiter
 
 
 from app.config import ENV, REDIS_HOST, REDIS_PORT
-from app.models import RootResponse, WriteDataRequest
+from app.models import RootResponse, DataRequest
 
 
 logging.basicConfig(
@@ -71,7 +71,6 @@ async def log_requests(request: Request, call_next):
 rate_limit = RateLimiter(times=10, seconds=60)  # ограничение - не более 10 запросов в 60 секунд
 
 
-
 @app.get(
     '/',
     response_model=RootResponse,
@@ -86,7 +85,7 @@ async def root() -> RootResponse:
 
 @app.post('/write_data', dependencies=[Depends(rate_limit)])
 async def post_write_data(
-        data: WriteDataRequest,
+        data: DataRequest,
         request: Request
 ):
     """
@@ -101,11 +100,11 @@ async def post_write_data(
 
 
 @app.get(
-    '/write_data',
-    response_model=WriteDataRequest,
+    '/check_data',
+    response_model=DataRequest,
     dependencies=[Depends(rate_limit)]
 )
-async def get_write_data(phone: str, request: Request):
+async def get_check_data(phone: str, request: Request):
     """
     Получает адрес по номеру телефона из redis
     """
@@ -116,4 +115,4 @@ async def get_write_data(phone: str, request: Request):
             status_code=404,
             content={"message": "Данные не найдены"}
         )
-    return WriteDataRequest(phone=phone, address=address)
+    return DataRequest(phone=phone, address=address)
